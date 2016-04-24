@@ -1,0 +1,194 @@
+---
+title: "EDA Project Diamond Prices Part 3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyr) 
+```
+
+##1. Price Histograms with Facet and Color
+
+Create a histogram of diamond prices. Facet the histogram by diamond color and use cut to color the histogram bars.
+
+```{r}
+ggplot(aes(x = price), data = diamonds) + 
+  geom_histogram(aes(fill = cut), binwidth = 1000) +
+  facet_wrap(~ color)
+```
+
+##2. Price vs. Table Colored by Cut
+
+Create a scatterplot of diamond price vs.table and color the points by the cut of the diamond.
+
+```{r}
+ggplot(aes(y = price, x = table), data = diamonds) + 
+  geom_point(aes(color = cut))
+```
+
+##3. Typical Table Value
+
+Using the graph created:
+
+What is the typical table range for the majority of diamonds of ideal cut? **53 - 57**
+
+What is the typical table range for the majority of diamonds of premium cut? **58 - 62**
+
+##4. Price vs. Volume and Diamond Clarity
+
+Create a scatterplot of diamond price vs.volume (x * y * z). Color the points by the clarity of diamonds. Use scale on the y-axis to take the log10 of price. Omit the top 1% of diamond volumes from the plot.
+
+```{r}
+diamonds$volume <- diamonds$x * diamonds$y * diamonds$z
+ggplot(aes(y = price, x = volume), data = diamonds) + 
+  geom_point(aes(color = clarity)) +
+  scale_y_log10() +
+  xlim(1, quantile(diamonds$volume, 0.99))
+```
+
+##5. Proportion of Friendships Initiated
+
+Create a new variable called 'prop_initiated'in the Pseudo-Facebook data set. The variable should contain the proportion of friendships that the user initiated.
+
+```{r}
+pf <- read.csv("pseudo_facebook.tsv", sep = "\t")
+pf$prop_initiated <- ifelse(pf$friend_count == 0, 0, 
+                            pf$friendships_initiated/pf$friend_count)
+summary(pf$prop_initiated)
+```
+
+#6. prop_initiated vs. tenure
+
+Create a line graph of the median proportion of friendships initiated ('prop_initiated') vs. tenure and color the line segment by year_joined.bucket.
+
+1. recreate buckets created in the lesson
+```{r}
+pf$year_joined <- floor(2014 - pf$tenure/365)
+pf$year_joined.bucket <- cut(pf$year_joined, 
+                             breaks = c(2004, 2009, 2011, 2012, 2014))
+```
+
+2. filter data and examine results
+```{r}
+pf.median_prop <- pf %>%
+  filter(!is.na(tenure)) %>%
+  filter(tenure > 0) %>%
+  group_by(tenure, year_joined.bucket) %>%
+  summarise(median_prop_fr_init = median(prop_initiated),
+            n = n()) %>%
+  ungroup() %>%
+  arrange(tenure)
+head(pf.median_prop)
+```
+
+3. create plot
+```{r}
+ggplot(aes(y = median_prop_fr_init, x = tenure), data = pf.median_prop) + 
+  geom_line(aes(color = year_joined.bucket))
+```
+
+##7. Smoothing prop_initiated vs. tenure
+
+Smooth the last plot you created of of prop_initiated vs tenure colored by year_joined.bucket. Bin together ranges of tenure or add a smoother to the plot.
+
+```{r}
+ggplot(aes(y = median_prop_fr_init, x = tenure), data = pf.median_prop) + 
+  geom_smooth(aes(color = year_joined.bucket))
+```
+
+##8. Greatest prop_initiated Group
+
+On average, which group initiated the greatest propoertion of its Facebook friendships? **People who joined after 2012**
+
+##9. Largest Group Mean prop_initiated
+
+For the group with the largest proportion of friendships initiated, what is the group's average proportion of friendships initiated?
+```{r}
+with(subset(pf, year_joined.bucket == "(2012,2014]"), mean(prop_initiated))
+```
+
+Why do you think this group's proportion of frienships initiated is higher than others?
+**New users: they are more likely to request friendship from existing users**
+
+##10. Price/Carat Binned, Faceted, & Colored
+
+Create a scatter plot of the price/carat ratio of diamonds. The variable x should be assigned to cut. The points should be colored by diamond color. The plot should be faceted by clarity.
+
+```{r}
+ggplot(aes(y = price/carat, x = cut), data = diamonds) + 
+  geom_point(aes(color = color), alpha = 1/10, position = position_jitter(h = 5)) +
+  facet_wrap(~ clarity)
+```
+
+##11. Gapminder Multivariate Analysis
+
+Create 2-5 plots that make use of the techniques from Lesson 5
+
+Aid given per person for various countries between 1960 and 2007 (constant 2007 US$)
+
+1. load csv, rename 1st column to something more managable, set NA's to zero, examine results
+```{r}
+app <- read.csv("app.csv")
+colnames(app)[1] <- "country" 
+app[is.na(app)] <- 0 
+app[1:5, 1:5]
+```
+
+2. reshape data into long form. and examine results
+```{r}
+app.long <- gather(app, "year", "amount_per_person", X1960:X2007)
+app.long$year <- as.numeric(substring(app.long$year, 2))
+head(app.long)
+```
+
+3. plot the amount per person by year for each country
+```{r}
+ggplot(aes(x = year, y = amount_per_person), data = app.long)  +   
+  geom_line(aes(colour = country))
+```
+
+4. plot the average amount per person by year for all countries
+```{r}
+app.long.mean_year <- app.long %>%
+  group_by(year) %>%
+  summarise(mean_amount_per_person = mean(amount_per_person))
+head(app.long.mean_year)
+
+ggplot(aes(x = year, y = mean_amount_per_person), data = app.long.mean_year)  +   
+  geom_smooth()
+```
+
+5. plot the amount per person by year by buckets of countries based on their mean amount per person
+
+create mean amount per person for each country
+```{r}
+app.long.mean_country <- app.long %>%
+  group_by(country) %>%
+  summarise(mean_country = mean(amount_per_person))
+head(app.long.mean_country)
+```
+
+create buckets of countries based on mean amount per person
+```{r}
+app.long.mean_country$country_bucket <- cut(app.long.mean_country$mean_country, breaks = 5)
+```
+
+combine new data set with long data set and examine the buckets
+```{r}
+app.long <- full_join(app.long, app.long.mean_country, by = "country") 
+summary(app.long$country_bucket)
+```
+
+plot the graph, including a mean line
+```{r}
+ggplot(aes(x = year, y = amount_per_person), data = app.long)  +   
+  geom_smooth(aes(colour = country_bucket)) +
+  geom_line(stat = "summary", fun.y = mean, linetype = 2)
+```
+
+
